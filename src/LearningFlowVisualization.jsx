@@ -69,6 +69,23 @@ export default function LearningFlowVisualization() {
   const [zoom, setZoom] = useState(0.92);
 
   /**
+   * 그래프 이동 위치입니다.
+   * 확대 상태에서 원하는 노드로 이동할 수 있도록 translate 값으로 사용합니다.
+   */
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+
+  /**
+   * 현재 그래프 배경을 드래그 중인지 확인하는 상태입니다.
+   */
+  const [isPanning, setIsPanning] = useState(false);
+
+  /**
+   * 드래그를 시작한 지점과 기존 pan 값을 함께 저장합니다.
+   * 이렇게 해야 드래그 중 위치가 튀지 않고 자연스럽게 이어집니다.
+   */
+  const [panStart, setPanStart] = useState({ mouseX: 0, mouseY: 0, panX: 0, panY: 0 });
+
+  /**
    * SVG 그래프에 표시되는 세부 학습 노드 목록입니다.
    * x, y 좌표는 넓어진 SVG viewBox 기준으로 다시 배치했습니다.
    */
@@ -463,6 +480,54 @@ export default function LearningFlowVisualization() {
    */
   const resetZoom = () => {
     setZoom(0.92);
+    setPan({ x: 0, y: 0 });
+  };
+
+  /**
+   * 그래프 배경을 마우스로 눌렀을 때 이동 준비를 시작합니다.
+   * 노드, 버튼, 입력창 위에서 누른 경우에는 기존 클릭 동작을 방해하지 않도록 제외합니다.
+   */
+  const startPan = (event) => {
+    if (event.button !== 0) return;
+    if (event.target.closest("button, input")) return;
+
+    setIsPanning(true);
+    setPanStart({
+      mouseX: event.clientX,
+      mouseY: event.clientY,
+      panX: pan.x,
+      panY: pan.y,
+    });
+  };
+
+  /**
+   * 마우스를 움직이는 동안 그래프 위치를 갱신합니다.
+   */
+  const movePan = (event) => {
+    if (!isPanning) return;
+
+    setPan({
+      x: panStart.panX + event.clientX - panStart.mouseX,
+      y: panStart.panY + event.clientY - panStart.mouseY,
+    });
+  };
+
+  /**
+   * 마우스 버튼을 놓거나 그래프 영역 밖으로 나가면 드래그 이동을 종료합니다.
+   */
+  const stopPan = () => {
+    setIsPanning(false);
+  };
+
+  /**
+   * 선택된 노드를 면접 답변에 바로 쓸 수 있는 문장으로 변환합니다.
+   * 노드 데이터에 별도 문장을 전부 하드코딩하지 않고, 현재 노드의 핵심 실습과 개념을 조합합니다.
+   */
+  const createInterviewSummary = (node) => {
+    const mainConcepts = node.concepts.slice(0, 3).join(", ");
+    const mainLabs = node.labs.slice(0, 3).join(", ");
+
+    return `${node.title} 영역에서는 ${mainLabs} 등을 직접 다루면서 ${mainConcepts} 개념을 실습 중심으로 확인했습니다. 단순히 도구 사용에 그치지 않고, 문제가 발생한 원인과 다른 영역으로 이어지는 흐름까지 정리해 포트폴리오 자료로 확장할 수 있습니다.`;
   };
 
   /**
@@ -597,7 +662,13 @@ export default function LearningFlowVisualization() {
               </div>
             </div>
 
-            <div className="relative h-[860px] overflow-hidden">
+            <div
+              className={`relative h-[860px] overflow-hidden select-none ${isPanning ? "cursor-grabbing" : "cursor-grab"}`}
+              onMouseDown={startPan}
+              onMouseMove={movePan}
+              onMouseUp={stopPan}
+              onMouseLeave={stopPan}
+            >
               <div className="absolute right-4 top-4 z-20 flex items-center rounded-2xl border border-slate-700 bg-slate-950/80 p-1 shadow-xl backdrop-blur">
                 <button
                   type="button"
@@ -628,7 +699,7 @@ export default function LearningFlowVisualization() {
 
               <svg
                 className="relative w-full h-full transition-transform duration-300 ease-out"
-                style={{ transform: `scale(${zoom})`, transformOrigin: "center center" }}
+                style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "center center" }}
                 viewBox="0 0 1180 920"
                 role="img"
                 aria-label="세부 학습 주제 간 연결 그래프"
@@ -802,6 +873,14 @@ export default function LearningFlowVisualization() {
                   포트폴리오에서의 의미
                 </div>
                 <p className="text-sm text-slate-300 leading-relaxed">{selectedNode.portfolio}</p>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4">
+                <div className="flex items-center mb-2 text-emerald-100 text-sm font-semibold">
+                  <Briefcase className="w-4 h-4 mr-2" />
+                  면접에서 이렇게 설명 가능
+                </div>
+                <p className="text-sm text-slate-300 leading-relaxed">{createInterviewSummary(selectedNode)}</p>
               </div>
 
               <div className="mt-5 rounded-2xl border border-slate-700 bg-slate-950/70 p-4">
